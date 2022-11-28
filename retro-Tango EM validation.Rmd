@@ -1,0 +1,141 @@
+---
+title: "trans Tango simulation generic"
+output: html_notebook
+---
+
+```{r}
+
+#for installation, view natverse.org
+library(neuprintr)
+library(natverse)
+library(nat.flybrains)
+library(nat.jrcbrains)
+
+#Downloaded via CRAN
+library(imputeTS)
+
+```
+
+
+```{r}
+
+#identifying GF neurons
+gf.info <- neuprint_search(".*Giant Fiber.*")
+
+
+```
+`
+```{r}
+
+#extracting ids
+postsynaptic.ids <- gf.info$bodyid
+
+```
+
+```{r}
+
+#getting metadata and only extracting info for ID'd neurons that have been traced
+postsynaptic.meta <- neuprint_get_meta(postsynaptic.ids)
+
+postsynaptic.ids <- postsynaptic.meta$bodyid[which(postsynaptic.meta$status == "Traced")]
+
+```
+
+
+```{r}
+#downloading skeletons
+postsynaptic.skels <- neuprint_read_neurons(postsynaptic.ids)
+
+```
+
+```{r}
+
+#retrieve info on all presynaptic partners
+presynaptic.info <- neuprint_simple_connectivity(postsynaptic.ids, prepost = "PRE")
+
+```
+
+```{r}
+
+#narrowing down to only traced neurons
+presynaptic.meta <- neuprint_get_meta(presynpatic.info$input)
+
+presynaptic.info <- presynaptic.info[which(presynaptic.meta$status == "Traced"),]
+
+```
+
+```{r}
+
+#finding cell bodies, used to quantify synaptic strength we observe that retro-Tango can detect
+presynaptic.cell.bodies <- neuprint_locate_soma(presynaptic.info$input)
+
+presynaptic.cell.bodies <- presynaptic.cell.bodies[-which(is.na(presynaptic.cell.bodies$X)),]
+#should return 341 cells
+
+```
+
+```{r}
+
+#thresholding based on synaptic weight, see text for how we arrived at this number
+weight.cutoff <- 16
+presynaptic.info <- na_replace(presynaptic.info, 0)
+
+presynaptic.info <- presynaptic.info[which(presynaptic.info$`2307027729_weight` > weight.cutoff),]
+
+```
+
+```{r}
+
+#retreieve skeletonizations
+presynaptic.skels <- neuprint_read_neurons(presynaptic.info$input)
+
+```
+
+```{r}
+#mirror across X axis
+
+presynaptic.skels.reform <- xform_brain(presynaptic.skels/125, reference = "FAFB14", sample = "JRCFIB2018F")
+
+presynaptic.skels.reform.mirror <- xform_brain(presynaptic.skels.reform, reference= "JFRC2", sample="FAFB14")
+presynaptic.skels.reform.mirror <- mirror_brain(presynaptic.skels.reform.mirror, brain = JFRC2, mirrorAxis = "X")
+presynaptic.skels.reform.mirror <- xform_brain(presynaptic.skels.reform.mirror, reference= "FAFB14", sample="JFRC2")
+
+```
+
+
+```{r}
+
+#generate colors for plot:
+
+#downloaded from CRAN
+library(RColorBrewer)
+
+purples <- brewer.pal(n = 9, name = "Purples")
+
+
+```
+
+
+```{r}
+#randomly sample purple values for each neuron we plot (mirrored and unmirrored)
+
+set.seed(1)
+
+presynaptic.color <- sample(purples[c(4:9)], length(presynaptic.skels), replace = TRUE)
+presynaptic.color.mirror <- sample(purples[c(4:9)], length(presynaptic.skels), replace = TRUE)
+
+
+```
+
+```{r}
+#now we plot!
+
+nopen3d()
+
+
+plot3d(presynaptic.skels.reform, col = presynaptic.color, lwd = 2, add = TRUE)
+plot3d(presynaptic.skels.reform.mirror, col = presynaptic.color.mirror, lwd = 2, add = TRUE)
+plot3d(FAFB14.surf, col = "grey", alpha = 0.3, add = TRUE)
+nview3d('frontal')
+
+```
